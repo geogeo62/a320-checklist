@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A320 Cockpit Checklist</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Arial',sans-serif;
+  background:#121212;
+  color:#e0e0e0;
+  display:flex;
+  min-height:100vh;
+  overflow-x:hidden;
+}
+.sidebar{
+  width:300px;min-width:300px;
+  background:#161616;
+  border-right:1px solid #2a2a2a;
+  display:flex;flex-direction:column;
+  padding:14px;gap:10px;
+  overflow-y:auto;max-height:100vh;
+}
+.main{flex:1;display:flex;flex-direction:column;padding:20px;min-width:0}
+.sb-title{
+  font-size:10px;font-weight:bold;color:#888;
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;
+}
+.sb-refresh{
+  font-size:10px;background:none;border:1px solid #333;
+  border-radius:4px;color:#666;padding:2px 6px;cursor:pointer;
+}
+.sb-refresh:hover{color:#aaa;border-color:#555}
+.sb-card{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px}
+.sb-row{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;padding:3px 0;border-bottom:1px solid #1a1a1a;
+}
+.sb-row:last-child{border-bottom:none}
+.sb-label{color:#666;font-size:11px}
+.sb-val{color:#00ffcc;font-family:'Courier New',monospace;font-size:12px;text-align:right;max-width:160px}
+.sb-val.warn{color:#ffb300}
+.sb-val.good{color:#00ff88}
+.sb-val.err{color:#ff4444}
+.sb-val.route{color:#888;font-size:10px;word-break:break-all}
+.metar-box{
+  background:#121212;border:1px solid #2a2a2a;border-radius:5px;
+  padding:8px;font-family:'Courier New',monospace;font-size:10px;
+  line-height:1.6;word-break:break-all;min-height:28px;
+}
+.metar-icao{font-size:10px;font-weight:bold;color:#ffb300;margin-bottom:3px}
+.metar-raw{color:#aaa}
+.pos-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;border-bottom:1px solid #1a1a1a;font-size:11px;
+}
+.pos-row:last-child{border-bottom:none}
+.pos-callsign{color:#00ffcc;font-weight:bold;font-family:'Courier New',monospace;font-size:11px}
+.pos-type{color:#666;font-size:10px}
+.pos-freq{color:#ffb300;font-family:'Courier New',monospace;font-size:11px}
+.pos-dot{
+  display:inline-block;width:6px;height:6px;background:#00ff88;
+  border-radius:50%;margin-right:4px;animation:pulse 2s infinite;
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pos-ap-label{
+  font-size:10px;color:#ffb300;font-weight:bold;
+  text-transform:uppercase;letter-spacing:.06em;padding:4px 0 2px;
+}
+.status-line{font-size:11px;color:#555;font-style:italic;padding:4px 0}
+.loading{color:#888;font-size:11px;font-style:italic;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* =========== HEADER =========== */
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;gap:8px;flex-wrap:wrap}
+.title{font-size:15px;font-weight:bold;color:#00ffcc;letter-spacing:.05em}
+.header-btns{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.menu-btn,.reset-btn{
+  display:flex;align-items:center;gap:5px;
+  font-size:12px;padding:6px 12px;
+  border-radius:6px;border:1px solid #444;
+  background:transparent;color:#aaa;cursor:pointer;
+}
+.menu-btn:hover,.reset-btn:hover{background:#2a2a2a;color:#e0e0e0}
+
+/* =========== BOUTON MICRO =========== */
+.mic-btn{
+  display:flex;align-items:center;gap:5px;
+  font-size:12px;padding:6px 14px;
+  border-radius:6px;border:2px solid #444;
+  background:transparent;color:#aaa;cursor:pointer;
+  transition:all .2s;position:relative;
+}
+.mic-btn:hover{background:#2a2a2a;color:#e0e0e0}
+.mic-btn.listening{
+  border-color:#00ffcc;color:#00ffcc;
+  background:rgba(0,255,204,0.08);
+  animation:mic-pulse 1.5s infinite;
+}
+.mic-btn.listening .mic-dot{background:#00ffcc}
+.mic-btn.error{border-color:#ff4444;color:#ff4444}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(0,255,204,.4)}50%{box-shadow:0 0 0 6px rgba(0,255,204,0)}}
+.mic-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:#555;transition:background .2s;
+  flex-shrink:0;
+}
+
+/* =========== PANNEAU VOCAL =========== */
+.voice-panel{
+  background:#161616;border:1px solid #2a2a2a;border-radius:8px;
+  padding:10px 14px;margin-bottom:12px;
+  display:flex;align-items:center;gap:10px;
+  font-size:12px;min-height:38px;
+  transition:all .3s;
+}
+.voice-panel.hidden{display:none}
+.voice-status{color:#555;font-style:italic;flex:1}
+.voice-status.active{color:#00ffcc}
+.voice-status.success{color:#00ff88;font-style:normal;font-weight:bold}
+.voice-status.warning{color:#ffb300}
+.voice-transcript{
+  font-family:'Courier New',monospace;font-size:11px;
+  color:#444;max-width:200px;text-align:right;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.voice-transcript.live{color:#00ffcc}
+
+/* =========== ITEM EN COURS (vocal) =========== */
+.row.voice-current{
+  border-color:#00ffcc !important;
+  background:#0d2d2d !important;
+  box-shadow:0 0 0 1px rgba(0,255,204,.3);
+}
+.row.voice-current .text-left{color:#00ffcc}
+.row.voice-current .checkbox{border-color:#00ffcc;animation:blink-border 1s infinite}
+@keyframes blink-border{0%,100%{border-color:#00ffcc}50%{border-color:#005544}}
+
+/* =========== FEEDBACK VOCAL =========== */
+.voice-feedback{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#0a3320;border:1px solid #00ff88;border-radius:8px;
+  padding:10px 20px;font-size:13px;color:#00ff88;
+  z-index:100;pointer-events:none;
+  transition:opacity .4s;opacity:0;
+}
+.voice-feedback.show{opacity:1}
+
+/* =========== PROGRESS =========== */
+.progress-wrap{margin-bottom:1.25rem}
+.progress-info{display:flex;justify-content:space-between;font-size:12px;color:#aaa;margin-bottom:6px}
+.progress-bar-bg{height:5px;background:#2a2a2a;border-radius:3px;overflow:hidden}
+.progress-bar-fill{height:100%;background:#1D9E75;border-radius:3px;transition:width .3s}
+
+/* =========== CONTAINER =========== */
+.container{
+  position:relative;background:#1e1e1e;
+  padding:25px;border-radius:10px;
+  box-shadow:0 0 15px rgba(0,0,0,.7);
+  border:1px solid #333;min-height:300px;
+}
+.menu-overlay{
+  display:none;position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  background:rgba(0,0,0,.6);z-index:10;border-radius:10px;
+}
+.menu-overlay.open{display:flex;align-items:flex-start;justify-content:flex-end}
+.menu-panel{
+  background:#1e1e1e;border:1px solid #444;border-radius:8px;
+  padding:1rem;margin:.75rem;width:340px;
+  z-index:11;max-height:calc(100% - 1.5rem);overflow-y:auto;
+}
+.menu-title{font-size:11px;font-weight:bold;color:#888;margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em}
+.menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.menu-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 8px;border-radius:6px;cursor:pointer;font-size:12px;color:#e0e0e0;
+}
+.menu-item:hover{background:#2a2a2a}
+.menu-item.active{background:#0a3320;color:#00ff99}
+.menu-badge{font-size:10px;padding:2px 5px;border-radius:9px;background:#2a2a2a;color:#888;flex-shrink:0;margin-left:4px}
+.menu-badge.done{background:#0a3320;color:#00ff99}
+.section-label{
+  font-size:11px;font-weight:bold;color:#ffb300;
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:8px;display:flex;align-items:center;gap:8px;
+}
+.section-title{
+  font-size:20px;font-weight:bold;color:#00ffcc;
+  margin-bottom:1.25rem;border-bottom:1px solid #333;
+  padding-bottom:10px;text-transform:uppercase;
+}
+.complete-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  font-size:11px;padding:2px 8px;border-radius:9px;
+  background:#0a3320;color:#00ff99;
+}
+.row{
+  display:flex;align-items:center;
+  padding:10px 12px;margin:4px 0;
+  background:#252525;border-radius:5px;cursor:pointer;
+  border:1px solid transparent;transition:background .2s,border .2s;
+}
+.row:hover{border-color:#444}
+.row.active{background:#0d4a25;border-color:#1a6e3a}
+.row.note{cursor:default;background:#1e1a0e;border-left:3px solid #ffb300;pointer-events:none}
+.row.note:hover{border-color:transparent;border-left-color:#ffb300}
+.checkbox{
+  width:20px;height:20px;border:2px solid #555;border-radius:4px;
+  margin-right:14px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:#121212;transition:all .15s;
+}
+.row.note .checkbox{display:none}
+.row.active .checkbox{border-color:#00ff88;background:#00c864}
+.row.active .checkbox::after{content:"✓";color:#121212;font-weight:bold;font-size:13px}
+.text-left{flex-grow:1;font-weight:bold;font-size:14px;color:#e0e0e0;text-transform:uppercase}
+.row.active .text-left{color:#00ff88}
+.row.note .text-left{color:#ffb300;font-style:italic;font-size:14px;font-weight:normal;text-transform:none}
+.text-right{font-family:'Courier New',monospace;font-size:14px;color:#00ffcc}
+.row.active .text-right{color:#00ff88}
+.row.note .text-right{color:#aaa;font-size:14px;font-style:italic}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-top:1.25rem;gap:8px}
+.nav-btn{
+  display:flex;align-items:center;gap:6px;
+  font-size:13px;padding:8px 18px;
+  border-radius:6px;border:1px solid #444;
+  background:transparent;color:#e0e0e0;cursor:pointer;
+}
+.nav-btn:hover{background:#2a2a2a}
+.nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.nav-btn.primary{background:#1D9E75;border-color:#1D9E75;color:#fff}
+.nav-btn.primary:hover{background:#0F6E56}
+.nav-btn.primary:disabled{background:#555;border-color:#555;opacity:.5}
+.page-indicator{font-size:12px;color:#888}
+.divider{border:none;border-top:1px solid #222;margin:2px 0}
+.no-data{color:#444;font-size:11px;font-style:italic}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div>
+    <div class="sb-title">
+      Plan de vol · Simbrief
+      <button class="sb-refresh" onclick="loadAll()">↺ Refresh</button>
+    </div>
+    <div class="sb-card" id="fp-card"><div class="loading">Chargement…</div></div>
+  </div>
+  <hr class="divider">
+  <div>
+    <div class="sb-title">Positions IVAO actives</div>
+    <div class="sb-card" id="ivao-card"><div class="loading">Chargement…</div></div>
+  </div>
+  <hr class="divider">
+  <div>
+    <div class="sb-title">METARs · Simbrief</div>
+    <div id="metar-dep-wrap"></div>
+    <div id="metar-arr-wrap" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="header">
+    <span class="title">✈ A320 COCKPIT CHECKLIST</span>
+    <div class="header-btns">
+      <button class="mic-btn" id="mic-btn" onclick="toggleVoice()">
+        <span class="mic-dot" id="mic-dot"></span>
+        <span id="mic-label">🎙 Voice</span>
+      </button>
+      <button class="menu-btn" onclick="toggleMenu()">☰ Sections</button>
+      <button class="reset-btn" onclick="resetAll()">↺ Réinitialiser</button>
+    </div>
+  </div>
+
+  <!-- Panneau état vocal -->
+  <div class="voice-panel hidden" id="voice-panel">
+    <div style="font-size:14px">🎙</div>
+    <div class="voice-status" id="voice-status">En attente…</div>
+    <div class="voice-transcript" id="voice-transcript"></div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-info">
+      <span>Progression globale</span>
+      <span id="prog-pct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="prog-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="container" id="main-container">
+    <div class="menu-overlay" id="menu-overlay" onclick="handleOverlayClick(event)">
+      <div class="menu-panel" onclick="event.stopPropagation()">
+        <div class="menu-title">Sections</div>
+        <div class="menu-grid" id="menu-list"></div>
+      </div>
+    </div>
+    <div id="page-content"></div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn" id="btn-prev" onclick="changePage(-1)" disabled>&#8592; Précédent</button>
+    <span class="page-indicator" id="page-indicator">1 / 18</span>
+    <button class="nav-btn primary" id="btn-next" onclick="changePage(1)">Suivant &#8594;</button>
+  </div>
+</div>
+
+<!-- Feedback vocal flottant -->
+<div class="voice-feedback" id="voice-feedback"></div>
+
+<script>
+// =========================================================
+//  CONFIG
+// =========================================================
+const PILOT_ID = '237572';
+
+// =========================================================
+//  DONNÉES CHECKLIST
+// =========================================================
+const sections = [
+  {label:"1. Power Up", title:"Power Up", items:[
+    {l:"Battery Master 1 & 2",       r:"ON"},
+    {l:"External Power",             r:"AS REQUIRED"},
+    {l:"APU",                        r:"AS REQUIRED"},
+    {l:"ADIRS",                      r:"SET TO NAV"},
+    {l:"Nav Lights",                 r:"ON"},
+    {l:"Primary Flight Display",     r:"BRIGHT"},
+    {l:"Navigation Display",         r:"BRIGHT"},
+    {l:"ECAM Displays",              r:"BRIGHT"},
+    {l:"Integrated Lights",          r:"AS REQUIRED"},
+  ]},
+  {label:"2. Cockpit Prep", title:"Cockpit Preparation", items:[
+    {l:"Parking Break",              r:"SET"},
+    {l:"Chocks",                     r:"SET"},
+    {l:"Engine Master",              r:"OFF"},
+    {l:"Eng. Mode Selector",         r:"NORM"},
+    {l:"Landing Gear Lever",         r:"CHECK DOWN"},
+    {l:"Flaps Lever",                r:"UP"},
+    {l:"Spoiler",                    r:"RETRACTED"},
+    {l:"Thrust Levers",              r:"IDLE"},
+    {l:"Transpondeur Mode",          r:"STANBY"},
+    {l:"Radio Panel",                r:"ON"},
+    {l:"Ecam Recal",                 r:"CHECK"},
+    {l:"Anti Skid",                  r:"ON"},
+    {l:"Flight Director",            r:"ON"},
+    {l:"Emergency Lights",           r:"ARM"},
+    {l:"Seatbelt Signs",             r:"OFF"},
+    {l:"No Smoking Signs",           r:"ON"},
+    {l:"No Ped Signs",               r:"OFF"},
+    {l:"Anti Ice",                   r:"OFF"},
+    {l:"Probe Window Heat",          r:"AS REQUIRED"},
+    {l:"Packs",                      r:"ON"},
+    {l:"Fans",                       r:"ON"},
+    {l:"Eng Generators",             r:"ON"},
+    {l:"Fuel Pumps",                 r:"ALL ON"},
+    {l:"Hydraulic Electric Pumps",   r:"ON"},
+    {l:"Gpws",                       r:"ALL ON"},
+    {l:"Fcs",                        r:"ALL ON"},
+    {l:"Baro Reference",             r:"SET QNH"},
+    {l:"⚠",r:"Start boarding passengers and load", note:true},
+  ]},
+  {label:"3. Before Start", title:"Before Start", items:[
+    {l:"Windows & Doors",            r:"CLOSE & LOCKED"},
+    {l:"Apu",                        r:"ON"},
+    {l:"⚠",r:"Expect APU to run (Green master light)", note:true},
+    {l:"Apu Bleed",                  r:"ON"},
+    {l:"Parking Brake",              r:"SET"},
+    {l:"Thrust Levers",              r:"IDLE"},
+    {l:"Seatbelt Signs",             r:"ON"},
+    {l:"No Ped Signs",               r:"ON"},
+    {l:"External Power",             r:"OFF"},
+    {l:"Baro Ref",                   r:"CHECK QNH"},
+    {l:"Beacon Lights",              r:"ON"},
+    {l:"⚠",r:"Remove all ground services and request pushback clearance", note:true},
+  ]},
+  {label:"4. Start Up", title:"Start Up", items:[
+    {l:"Thrust Levers",              r:"IDLE"},
+    {l:"Engine Area",                r:"CLEAR"},
+    {l:"Eng Mode Selector",          r:"IGN/START"},
+    {l:"ENG 2",                      r:"ON"},
+    {l:"Monitor engine 2 on ECAM Page", r:"⚠", note:true},
+    {l:"At N2>20% Fuel Flow",        r:"CHECK ON"},
+    {l:"N1 Increasing As N2 Incr",   r:"CHECK"},
+    {l:"OIL Presure",                r:"CHECK"},
+    {l:"Generator Switch",           r:"ON"},
+    {l:"ENG 1",                      r:"ON"},
+    {l:"Monitor Engine 1 On ECAM Page", r:"⚠", note:true},
+    {l:"At N2>20% Fuel Flow",        r:"CHECK ON"},
+    {l:"N1 Increasing As N2 Incr",   r:"CHECK"},
+    {l:"OIL Presure",                r:"CHECK"},
+    {l:"Generator Switch",           r:"ON"},
+    {l:"Fuel Flow",                  r:"CHECK"},
+    {l:"Hyd Pump Switches",          r:"ON"},
+  ]},
+  {label:"5. Before Taxi", title:"Before Taxi", items:[
+    {l:"Eng Mode Selector",          r:"NORM"},
+    {l:"Apu Bleed",                  r:"OFF"},
+    {l:"Apu",                        r:"OFF"},
+    {l:"Spoilers",                   r:"ARM"},
+    {l:"Rudder Trim",                r:"SET"},
+    {l:"Pitch Trim",                 r:"SET"},
+    {l:"Flight Controls",            r:"CHECK"},
+    {l:"Flaps",                      r:"SET FOR TAKE OFF"},
+    {l:"Eng. Anti-Ice",              r:"AS REQUIRED"},
+    {l:"Wing Anti-Ice",              r:"AS REQUIRED"},
+    {l:"Ecam Status",                r:"CHECK"},
+    {l:"Ecam Door Page",             r:"CHECK"},
+  ]},
+  {label:"6. Taxi", title:"Taxi", items:[
+    {l:"Nose Light",                 r:"ON"},
+    {l:"Parking Brake",              r:"OFF"},
+    {l:"Thrust Levers",              r:"25-30% N1 (THE IDLE)"},
+    {l:"Braking Test",               r:"CHECK"},
+    {l:"Auto Brake",                 r:"MAX"},
+    {l:"Fcu",                        r:"CHECK"},
+    {l:"T.O Config",                 r:"PRESS & CHECK BLUE TXT"},
+    {l:"Weather Radar",              r:"ON (WX+T)"},
+    {l:"Flight Director",            r:"ON"},
+    {l:"Transponder",                r:"SET"},
+  ]},
+  {label:"7. Before Take Off", title:"Before Take Off", items:[
+    {l:"Report Flight Attendants",   r:"CHECK"},
+    {l:"Ecam Wheel Page",            r:"CHECK"},
+    {l:"PACKS 1 & 2",               r:"OFF"},
+    {l:"Brake Fans",                 r:"IF TEMP>150° ON"},
+    {l:"Eng Mode Selector",          r:"NORM"},
+    {l:"Transponder",                r:"SET TR/RA"},
+    {l:"Weather Radar",              r:"+4° UP"},
+    {l:"Anti Skid",                  r:"ON"},
+    {l:"⚠",r:"REQUEST CLEARANCE AT HOLD POSITION", note:true},
+    {l:"Strobe Lights",              r:"ON"},
+    {l:"Landing Lights",             r:"ON"},
+    {l:"Rwy Turn On Lights",         r:"AS REQUIRED"},
+    {l:"Nose Lights",                r:"T.O"},
+  ]},
+  {label:"8. Take Off", title:"Take Off", items:[
+    {l:"Thrust",                     r:"TOGA/FLEX"},
+    {l:"Chrono",                     r:"START"},
+  ]},
+  {label:"9. After Take Off", title:"After Take Off", items:[
+    {l:"Eng Mode Selector",          r:"NORM"},
+    {l:"Spoilers",                   r:"DISARMED"},
+    {l:"Flaps",                      r:"UP"},
+    {l:"Gear",                       r:"UP"},
+    {l:"Nose Light",                 r:"OFF"},
+    {l:"Rwy Turnoff Lights",         r:"OFF"},
+    {l:"Packs",                      r:"ON"},
+    {l:"Anti-Ice",                   r:"AS REQUIRED"},
+  ]},
+  {label:"10. Climb", title:"Climb", items:[
+    {l:"Trans. Altitude",            r:"SET STD"},
+    {l:"Above 10.000ft",             r:"⚠", note:true},
+    {l:"Landing Lights",             r:"OFF"},
+    {l:"Seatblet Signs",             r:"AS REQUIRED"},
+  ]},
+  {label:"11. Cruise", title:"Cruise", items:[
+    {l:"Flight Progress",            r:"CHECK"},
+    {l:"Weather",                    r:"CHECK"},
+    {l:"Ecam",                       r:"CHECK"},
+    {l:"Ecam Pages",                 r:"CHECK"},
+  ]},
+  {label:"12. Descent Prep", title:"Descent Preparation", items:[
+    {l:"Landing Information",        r:"RECEIVED"},
+    {l:"Altimeters",                 r:"SET"},
+    {l:"DH/MDA",                     r:"SET"},
+    {l:"Ldg Elevation",              r:"SET"},
+  ]},
+  {label:"13. Descent", title:"Descent", items:[
+    {l:"Push FCU Altitude",          r:"⚠", note:true},
+    {l:"Seatbelt Signs",             r:"AUTO"},
+    {l:"Anti-Ice",                   r:"OFF"},
+    {l:"Baro Reference",             r:"STD"},
+    {l:"At 10.000FT",                r:"⚠", note:true},
+    {l:"Seatbelt Signs",             r:"ON"},
+    {l:"Landing Lights",             r:"ON"},
+    {l:"Landing System",             r:"ON"},
+    {l:"Fuel & Balance",             r:"CHECK"},
+    {l:"Flaps/Landing Gear",         r:"CHECK UP"},
+    {l:"Check weather, ATIS & Flight Services", r:"⚠", note:true},
+  ]},
+  {label:"14. Approach", title:"Approach", items:[
+    {l:"SEATBELT",                   r:"ON"},
+    {l:"RADIO",                      r:"SET"},
+    {l:"SPEED",                      r:"ESTABLISH 210 KIAS"},
+    {l:"LANDING LIGHTS",             r:"CHECK ON"},
+    {l:"TAXI LIGHTS",                r:"ON"},
+    {l:"GND SPOILERS",               r:"ARM"},
+    {l:"AUTO BRAKE",                 r:"SET"},
+    {l:"FLAPS",                      r:"SET 1"},
+    {l:"SPEED",                      r:"ESTABLISH 180 KIAS"},
+    {l:"AT 6 DME",                   r:"SET FLAPS 2"},
+    {l:"SPEED",                      r:"MANAGED"},
+    {l:"LANDING GEAR",               r:"DOWN"},
+    {l:"SLANDING GEAR 3 GREEN",      r:"SET FLAPS 3"},
+    {l:"FLAPS",                      r:"FULL"},
+    {l:"Final Glideslope Descent",   r:"⚠", note:true},
+    {l:"SPEED",                      r:"MANAGED"},
+    {l:"PARKING BRAKE",              r:"VERIFY OFF"},
+    {l:"DE-ICE",                     r:"AS REQUIRED"},
+  ]},
+  {label:"15. Landing", title:"LANDING", items:[
+    {l:"LANDING GEAR",               r:"CHECK DOWN"},
+    {l:"AUTOPILOT",                  r:"AS REQUIRED"},
+    {l:"GO-AROUND ALTITUDE",         r:"SET IN FCU"},
+    {l:"AUTO-THRUST",                r:"AS REQUIRED"},
+    {l:"LANDING MEMO",               r:"NO BLUE"},
+    {l:"LANDING SPEED",              r:"MANAGED"},
+    {l:"Set reverse thrust at touch down", r:"⚠", note:true},
+    {l:"SPOILERS",                   r:"VERIFY EXTENDED"},
+    {l:"BRAKES",                     r:"AS REQUIRED"},
+    {l:"Cancel reverse thrust at 60 KIAS", r:"⚠", note:true},
+  ]},
+  {label:"16. After Landing", title:"AFTER LANDING", items:[
+    {l:"SPOILERS",                   r:"DISARMED"},
+    {l:"FLAPS",                      r:"RETRACT"},
+    {l:"ENG MODE SELECTOR",          r:"NORM"},
+    {l:"LANDING LIGHTS",             r:"OFF"},
+    {l:"STROBE LIGHTS",              r:"OFF"},
+    {l:"ANTI-ICE",                   r:"AS REQUIRED"},
+    {l:"APU",                        r:"START"},
+    {l:"BRAKE TEMP",                 r:"CHECK"},
+    {l:"TRANSPONDER",                r:"STAND BY"},
+    {l:"Taxi to gate. Max speed : 20 knots.", r:"⚠", note:true},
+    {l:"APU",                        r:"START / CHECK RUN"},
+    {l:"APU",                        r:"GEN ON / CHECK VOLTS"},
+    {l:"Turning into the gate",      r:"⚠", note:true},
+    {l:"TAXI LIGHTS",                r:"OFF"},
+  ]},
+  {label:"17. Parking", title:"PARKING", items:[
+    {l:"PARKING BRAKES",             r:"SET"},
+    {l:"THRUST LEVERS",              r:"IDLE"},
+    {l:"ENGINE MASTER 1 & 2",        r:"OFF"},
+    {l:"GROUND CONTACT",             r:"ESTABLISH"},
+    {l:"GROUND OPERATIONS",          r:"AS REQUIRED"},
+    {l:"ELECTRICAL POWER",           r:"ESTABLISH"},
+    {l:"PARKING BRAKES",             r:"AS REQUIRED"},
+    {l:"NAV LIGHTS",                 r:"ON"},
+    {l:"EXTERIOR LIGHTS",            r:"OFF"},
+    {l:"ANTI-ICE",                   r:"OFF"},
+    {l:"PASSENGER SIGNS",            r:"OFF"},
+    {l:"DOORS",                      r:"OPEN"},
+    {l:"FLIGHT DIRECTOR",            r:"OFF"},
+    {l:"APU BLEED",                  r:"AS REQUIRED"},
+    {l:"FUEL PUMPS",                 r:"ALL OFF"},
+    {l:"BEACON LIGHTS",              r:"OFF"},
+    {l:"ECAM STS",                   r:"DEPRESS"},
+  ]},
+  {label:"18. Shutdown", title:"SHUTDOWN & SECURE", items:[
+    {l:"PANEL LIGHTS",               r:"OFF"},
+    {l:"ADIRS",                      r:"OFF"},
+    {l:"AVIONICS",                   r:"OFF"},
+    {l:"NO SMOKING",                 r:"OFF"},
+    {l:"APU",                        r:"AS REQUIRED"},
+    {l:"BATTERIES",                  r:"AS REQUIRED"},
+  ]},
+];
+
+// =========================================================
+//  ÉTAT
+// =========================================================
+let currentPage = 0;
+let checked = sections.map(s => s.items.map(() => false));
+let depIcao = '', arrIcao = '';
+
+// État vocal
+let voiceActive   = false;   // micro actif ?
+let recognition   = null;    // instance SpeechRecognition
+let voiceItemIdx  = -1;      // index de l'item "en attente de validation vocale"
+
+
+// =========================================================
+//  PROGRESSION
+// =========================================================
+function totalItems()   { return sections.reduce((a,s)=>a+s.items.filter(i=>!i.note).length,0); }
+function totalChecked() { return checked.reduce((a,s,si)=>a+s.filter((v,j)=>v&&!sections[si].items[j].note).length,0); }
+function sectionChecked(i){ return checked[i].filter((v,j)=>v&&!sections[i].items[j].note).length; }
+function sectionTotal(i)  { return sections[i].items.filter(item=>!item.note).length; }
+function sectionDone(i)   { return sections[i].items.every((item,j)=>item.note||checked[i][j]); }
+
+// =========================================================
+//  RENDER
+// =========================================================
+function updateProgress(){
+  const pct=Math.round(totalChecked()/totalItems()*100);
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('prog-pct').textContent=pct+'%';
+}
+
+function renderMenu(){
+  document.getElementById('menu-list').innerHTML=sections.map((s,i)=>{
+    const done=sectionDone(i);
+    return `<div class="menu-item${i===currentPage?' active':''}" onclick="goToPage(${i})">
+      <span>${s.label}</span>
+      <span class="menu-badge${done?' done':''}">${sectionChecked(i)}/${sectionTotal(i)}</span>
+    </div>`;
+  }).join('');
+}
+
+function buildItemsHTML(s,pageIdx){
+  return `<div>${s.items.map((item,j)=>`
+    <div class="row${checked[pageIdx][j]?' active':''}${item.note?' note':''}${(voiceActive&&voiceItemIdx===j&&!item.note&&!checked[pageIdx][j])?' voice-current':''}" onclick="toggleItem(${j})">
+      <div class="checkbox"></div>
+      <div class="text-left">${item.l}</div>
+      <div class="text-right">${item.r}</div>
+    </div>`).join('')}</div>`;
+}
+
+function renderPage(){
+  const s=sections[currentPage];
+  document.getElementById('page-content').innerHTML=`
+    <div class="section-label">${s.label}${sectionDone(currentPage)?'<span class="complete-badge">✓ Complet</span>':''}</div>
+    <div class="section-title">${s.title}</div>
+    ${buildItemsHTML(s,currentPage)}`;
+  document.getElementById('page-indicator').textContent=(currentPage+1)+' / '+sections.length;
+  document.getElementById('btn-prev').disabled=currentPage===0;
+  const btnNext=document.getElementById('btn-next');
+  if(currentPage===sections.length-1){btnNext.innerHTML='⚑ Terminé';btnNext.disabled=true;}
+  else{btnNext.innerHTML='Suivant &#8594;';btnNext.disabled=false;}
+  updateProgress();
+  renderMenu();
+}
+
+// =========================================================
+//  INTERACTIONS MANUELLES
+// =========================================================
+function toggleItem(j){
+  if(sections[currentPage].items[j].note) return;
+  checked[currentPage][j]=!checked[currentPage][j];
+  // Si vocal actif et on vient de cocher manuellement l'item en cours, avancer
+  if(voiceActive && checked[currentPage][j] && voiceItemIdx===j){
+    renderPage();
+    setTimeout(()=>advanceVoiceToNextItem(), 300);
+  } else {
+    renderPage();
+  }
+}
+
+function changePage(dir){
+  const next=currentPage+dir;
+  if(next>=0&&next<sections.length){
+    currentPage=next;
+    if(voiceActive) voiceItemIdx=findNextUncheckedItem();
+    renderPage();
+    if(voiceActive && voiceItemIdx!==-1){
+      const item=sections[currentPage].items[voiceItemIdx];
+      setVoiceStatus('En attente : « '+item.r+' »','active');
+    }
+  }
+}
+
+function goToPage(i){
+  currentPage=i;
+  if(voiceActive) voiceItemIdx=findNextUncheckedItem();
+  renderPage();
+  toggleMenu();
+  if(voiceActive && voiceItemIdx!==-1){
+    const item=sections[currentPage].items[voiceItemIdx];
+    setVoiceStatus('En attente : « '+item.r+' »','active');
+  }
+}
+
+function resetAll(){
+  if(confirm('Réinitialiser toute la checklist ?')){
+    checked=sections.map(s=>s.items.map(()=>false));
+    voiceItemIdx=voiceActive?findNextUncheckedItem():-1;
+    renderPage();
+    if(voiceActive && voiceItemIdx!==-1){
+      const item=sections[currentPage].items[voiceItemIdx];
+      setVoiceStatus('En attente : « '+item.r+' »','active');
+    }
+  }
+}
+
+function toggleMenu(){
+  document.getElementById('menu-overlay').classList.toggle('open');
+  renderMenu();
+}
+
+function handleOverlayClick(e){
+  if(e.target===document.getElementById('menu-overlay')) toggleMenu();
+}
+
+// =========================================================
+//  LOGIQUE VOCALE
+// =========================================================
+
+/** Nettoie une chaîne pour comparaison : minuscules, sans ponctuation */
+function normalize(str){
+  return str.toLowerCase()
+    .replace(/[^a-z0-9\s]/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+/**
+ * "AS REQUIRED" accepte : on, off, set, done, check, arm,
+ *  as required, required, affirm, roger
+ */
+const AS_REQUIRED_ALTS = ['on','off','set','done','check','arm','affirm','roger','required','as required'];
+
+/** Retourne true si la valeur attendue correspond au transcript */
+function matchesExpected(t, item){
+  const expected = normalize(item.r);
+
+  // Cas spécial AS REQUIRED
+  if(expected === 'as required'){
+    return AS_REQUIRED_ALTS.some(alt => t === alt || t.includes(alt));
+  }
+
+  // Correspondance exacte ou incluse
+  if(t === expected || t.includes(expected) || expected.includes(t)) return true;
+
+  // Correspondance floue : >60% des mots de la valeur attendue dans le transcript
+  return fuzzyMatch(t, expected);
+}
+
+/** Trouve l'index du prochain item cochable non coché sur la page courante */
+function findNextUncheckedItem(){
+  const items=sections[currentPage].items;
+  for(let j=0;j<items.length;j++){
+    if(!items[j].note && !checked[currentPage][j]) return j;
+  }
+  return -1;
+}
+
+/** Avance au prochain item non coché */
+function advanceVoiceToNextItem(){
+  voiceItemIdx=findNextUncheckedItem();
+  renderPage();
+  if(voiceItemIdx===-1){
+    setVoiceStatus('✓ Section complète — dites le nom de la prochaine section', 'success');
+  } else {
+    const item=sections[currentPage].items[voiceItemIdx];
+    setVoiceStatus('En attente : « '+item.r+' »', 'active');
+  }
+}
+
+/** Change le statut affiché dans le panneau vocal */
+function setVoiceStatus(msg, cls){
+  const el=document.getElementById('voice-status');
+  el.textContent=msg;
+  el.className='voice-status'+(cls?' '+cls:'');
+}
+
+/** Affiche le feedback flottant pendant 1.5s */
+function showFeedback(msg){
+  const fb=document.getElementById('voice-feedback');
+  fb.textContent=msg;
+  fb.classList.add('show');
+  clearTimeout(fb._t);
+  fb._t=setTimeout(()=>fb.classList.remove('show'),1500);
+}
+
+/**
+ * Traite la transcription vocale.
+ *  1. Navigation : nom de section + mot-clé (completed/done/terminé…)
+ *  2. Validation de l'item courant
+ */
+function handleTranscript(transcript){
+  const t=normalize(transcript);
+  document.getElementById('voice-transcript').textContent=transcript;
+  document.getElementById('voice-transcript').className='voice-transcript live';
+  setTimeout(()=>{
+    document.getElementById('voice-transcript').className='voice-transcript';
+    document.getElementById('voice-transcript').textContent='';
+  },2000);
+
+  // --- Navigation par section ---
+  for(let i=0;i<sections.length;i++){
+    const rawLabel=sections[i].label.replace(/^\d+\.\s*/,'');
+    const normLabel=normalize(rawLabel);
+    const keywords=['completed','terminé','done','complete','finish','finished','suivant','next'];
+    const hasKw=keywords.some(kw=>t.includes(kw));
+    const wordsMatch=normLabel.split(' ').filter(w=>w.length>2).every(w=>t.includes(w));
+    if(hasKw && wordsMatch){
+      showFeedback('→ '+sections[i].label);
+      currentPage=i;
+      voiceItemIdx=findNextUncheckedItem();
+      renderPage();
+      if(voiceItemIdx!==-1){
+        const item=sections[currentPage].items[voiceItemIdx];
+        setVoiceStatus('En attente : « '+item.r+' »','active');
+      }
+      return;
+    }
+  }
+
+  // --- Validation item courant ---
+  if(voiceItemIdx===-1) return;
+  const item=sections[currentPage].items[voiceItemIdx];
+  if(!item || item.note) return;
+
+  if(matchesExpected(t, item)){
+    checked[currentPage][voiceItemIdx]=true;
+    showFeedback('✓ '+item.r);
+    renderPage();
+    setTimeout(()=>advanceVoiceToNextItem(), 300);
+  }
+}
+
+/** Correspondance floue : >60% des mots de la valeur attendue sont dans le transcript */
+function fuzzyMatch(transcript, expected){
+  if(!expected || expected.length<2) return false;
+  const expWords=expected.split(' ').filter(w=>w.length>1);
+  if(expWords.length===0) return false;
+  const matched=expWords.filter(w=>transcript.includes(w));
+  return matched.length/expWords.length>=0.6;
+}
+
+// =========================================================
+//  GESTION DU MICRO
+// =========================================================
+function toggleVoice(){
+  if(voiceActive) stopVoice();
+  else startVoice();
+}
+
+function startVoice(){
+  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SpeechRecognition){
+    alert('La reconnaissance vocale n\'est pas supportée par ce navigateur.\nUtilisez Chrome ou Edge.');
+    return;
+  }
+
+  voiceActive=true;
+  voiceItemIdx=findNextUncheckedItem();
+
+  // UI
+  const btn=document.getElementById('mic-btn');
+  btn.classList.add('listening');
+  document.getElementById('mic-label').textContent='🎙 Actif';
+  document.getElementById('voice-panel').classList.remove('hidden');
+  setVoiceStatus('Initialisation…','active');
+  renderPage();
+
+  // Initialise la reconnaissance (une seule instance, jamais recrée)
+  // continuous=true évite les redémarrages et donc les redemandes de permission
+  recognition=new SpeechRecognition();
+  recognition.lang='en-US';
+  recognition.continuous=true;
+  recognition.interimResults=true;
+  recognition.maxAlternatives=1;
+
+  recognition.onresult=function(e){
+    let final='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
+      else document.getElementById('voice-transcript').textContent=e.results[i][0].transcript;
+    }
+    if(final.trim()) handleTranscript(final.trim());
+  };
+
+  recognition.onerror=function(e){
+    if(e.error==='no-speech' || e.error==='audio-capture') return;
+    console.warn('Voice error:',e.error);
+    if(e.error==='not-allowed'){
+      setVoiceStatus('Micro refusé – autorisez l\'accès dans Chrome','warning');
+      stopVoice(); return;
+    }
+    // Pour toute autre erreur, on laisse onend gérer le redémarrage
+  };
+
+  // onend ne se déclenche que si continuous=true est interrompu de l'extérieur
+  // On redémarre sans recréer l'instance (pas de nouvelle demande de permission)
+  recognition.onend=function(){
+    if(!voiceActive) return;
+    try{ recognition.start(); }catch(err){ console.warn('restart err',err); }
+  };
+
+  try{ recognition.start(); }catch(err){ console.error(err); }
+
+  // Indique le premier item attendu
+  if(voiceItemIdx!==-1){
+    const item=sections[currentPage].items[voiceItemIdx];
+    setVoiceStatus('En attente : « '+item.r+' »','active');
+  } else {
+    setVoiceStatus('Section déjà complète','success');
+  }
+}
+
+function stopVoice(){
+  voiceActive=false;
+  voiceItemIdx=-1;
+  if(recognition){ try{recognition.abort();}catch(e){} recognition=null; }
+
+  document.getElementById('mic-btn').classList.remove('listening','error');
+  document.getElementById('mic-label').textContent='🎙 Voice';
+  document.getElementById('voice-panel').classList.add('hidden');
+  renderPage();
+}
+
+// =========================================================
+//  METAR// =========================================================
+function renderMetar(containerId,icao,raw){
+  const el=document.getElementById(containerId);
+  if(!raw||raw.trim()===''){
+    el.innerHTML=`<div class="metar-icao">${icao}</div><div class="metar-box"><span class="no-data">Aucun METAR disponible</span></div>`;return;
+  }
+  el.innerHTML=`<div class="metar-icao">${icao}</div><div class="metar-box"><span class="metar-raw">${raw.trim()}</span></div>`;
+}
+
+// =========================================================
+//  SIMBRIEF
+// =========================================================
+async function loadSimbrief(){
+  try{
+    const r=await fetch(`https://www.simbrief.com/api/xml.fetcher.php?userid=${PILOT_ID}&json=1`);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(d.fetch&&d.fetch.status==='Error') throw new Error(d.fetch.message||'Erreur Simbrief');
+
+    const orig=d.origin||{},dest=d.destination||{},fuel=d.fuel||{},gen=d.general||{},atc=d.atc||{},weights=d.weights||{};
+    depIcao=orig.icao_code||''; arrIcao=dest.icao_code||'';
+    const fl=gen.initial_altitude?Math.round(gen.initial_altitude/100):'—';
+    const flStr=fl!=='—'?'FL'+String(fl).padStart(3,'0'):'—';
+    const blockT=(parseInt(fuel.plan_ramp||0)/1000).toFixed(1);
+    const wUnit=(weights.units||'kgs').toLowerCase();
+    const wDiv=wUnit==='lbs'?2204.6:1000;
+    const zfwT=(parseInt(weights.est_zfw||weights.plan_zfw||0)/wDiv).toFixed(1);
+    const ci=gen.costindex||'—';
+    const route=gen.route||'—';
+    const depRwy=orig.plan_rwy||orig.rwy||orig.runway||'—';
+    const arrRwy=dest.plan_rwy||dest.rwy||dest.runway||'—';
+    const rwySummary=`DEP ${depIcao} RWY ${depRwy} → ARR ${arrIcao} RWY ${arrRwy}`;
+
+    document.getElementById('fp-card').innerHTML=`
+      <div class="sb-row"><span class="sb-label">Vol</span><span class="sb-val good">${atc.callsign||gen.flight_number||'—'}</span></div>
+      <div class="sb-row"><span class="sb-label">Départ</span><span class="sb-val">${depIcao||'—'} · ${orig.name||''}</span></div>
+      <div class="sb-row"><span class="sb-label">Arrivée</span><span class="sb-val">${arrIcao||'—'} · ${dest.name||''}</span></div>
+      <div class="sb-row"><span class="sb-label">Appareil</span><span class="sb-val">${d.aircraft?.icaocode||'A320'} ${d.aircraft?.reg||''}</span></div>
+      <div class="sb-row"><span class="sb-label">Altitude</span><span class="sb-val">${flStr}</span></div>
+      <div class="sb-row"><span class="sb-label">Cost Index</span><span class="sb-val good">${ci}</span></div>
+      <div class="sb-row"><span class="sb-label">Fuel bloc</span><span class="sb-val warn">${blockT} T</span></div>
+      <div class="sb-row"><span class="sb-label">ZFW</span><span class="sb-val">${zfwT} T</span></div>
+      <div class="sb-row" style="align-items:flex-start"><span class="sb-label" style="flex-shrink:0">Pistes</span><span class="sb-val good" style="margin-left:8px;font-size:11px">${rwySummary}</span></div>
+      <div class="sb-row" style="align-items:flex-start"><span class="sb-label" style="flex-shrink:0">Route</span><span class="sb-val route" style="margin-left:8px">${route}</span></div>`;
+
+    const wx=d.weather||{};
+    const depMetar=wx.orig_metar||wx.dep_metar||'';
+    const arrMetar=wx.dest_metar||wx.arr_metar||'';
+    if(depMetar) renderMetar('metar-dep-wrap',depIcao,depMetar);
+    else fetchMetarFallback('metar-dep-wrap',depIcao);
+    if(arrMetar) renderMetar('metar-arr-wrap',arrIcao,arrMetar);
+    else fetchMetarFallback('metar-arr-wrap',arrIcao);
+
+    return{dep:depIcao,arr:arrIcao};
+  }catch(e){
+    document.getElementById('fp-card').innerHTML=`<div class="status-line" style="color:#ff4444">Erreur Simbrief :<br>${e.message}</div>`;
+    return null;
+  }
+}
+
+async function fetchMetarFallback(containerId,icao){
+  if(!icao) return;
+  document.getElementById(containerId).innerHTML=`<div class="metar-icao">${icao}</div><div class="metar-box"><span class="loading">Chargement…</span></div>`;
+  try{
+    const r=await fetch(`https://aviationweather.gov/api/data/metar?ids=${icao}&format=raw`);
+    const txt=await r.text();
+    renderMetar(containerId,icao,txt.trim());
+  }catch(e){
+    document.getElementById(containerId).innerHTML=`<div class="metar-icao">${icao}</div><div class="metar-box"><span class="no-data">Indisponible</span></div>`;
+  }
+}
+
+// =========================================================
+//  IVAO
+// =========================================================
+const POS_ORDER_DEP=['DEL','GND','TWR','DEP','APP','CTR'];
+const POS_LABELS={DEL:'Delivery',GND:'Ground',TWR:'Tower',DEP:'Departure',APP:'Approach',CTR:'Control',ATIS:'ATIS'};
+
+async function fetchIvao(dep,arr){
+  const card=document.getElementById('ivao-card');
+  if(!dep&&!arr){card.innerHTML='<div class="no-data">Pas de plan de vol</div>';return;}
+  try{
+    const r=await fetch('https://api.ivao.aero/v2/tracker/whazzup');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const atcs=data.clients?.atcs||[];
+    const airports=[dep,arr].filter(Boolean);
+    const matches=[];
+
+    for(const atcObj of atcs){
+      const cs=(atcObj.callsign||'').toUpperCase();
+      const parts=cs.split('_');
+      const prefix=parts[0];
+      const suffix=parts.slice(1).join('_');
+      const posKey=Object.keys(POS_LABELS).find(k=>suffix.includes(k))||suffix;
+      const freqRaw=atcObj.atcSession?.frequency;
+      const freq=freqRaw?(freqRaw/1).toFixed(3):'—';
+      for(const ap of airports){
+        if(prefix===ap){matches.push({callsign:cs,airport:ap,posKey,label:POS_LABELS[posKey]||suffix,freq});break;}
+      }
+      if(posKey==='CTR'&&!airports.includes(prefix)){
+        for(const ap of airports){
+          const firPfx=ap.substring(0,2);
+          if(prefix.startsWith(firPfx)){matches.push({callsign:cs,airport:ap,posKey,label:POS_LABELS['CTR'],freq});break;}
+        }
+      }
+    }
+
+    if(matches.length===0){card.innerHTML=`<div class="no-data">Aucun ATC actif sur ${airports.join(' / ')}</div>`;return;}
+    let html='';
+    for(const ap of airports){
+      const grp=matches.filter(m=>m.airport===ap);
+      if(!grp.length) continue;
+      const isArr=ap===arr&&ap!==dep;
+      const orderArr=isArr?[...POS_ORDER_DEP].reverse():POS_ORDER_DEP;
+      grp.sort((a,b)=>{const ia=orderArr.indexOf(a.posKey),ib=orderArr.indexOf(b.posKey);return(ia===-1?99:ia)-(ib===-1?99:ib);});
+      html+=`<div class="pos-ap-label">${ap} ${isArr?'(ARR)':'(DEP)'}</div>`;
+      for(const p of grp){
+        html+=`<div class="pos-row">
+          <span><span class="pos-dot"></span><span class="pos-callsign">${p.callsign}</span><span class="pos-type"> ${p.label}</span></span>
+          <span class="pos-freq">${p.freq} MHz</span></div>`;
+      }
+    }
+    card.innerHTML=html;
+  }catch(e){
+    document.getElementById('ivao-card').innerHTML=`<div class="status-line" style="color:#ff4444">Erreur IVAO : ${e.message}</div>`;
+  }
+}
+
+// =========================================================
+//  CHARGEMENT GLOBAL
+// =========================================================
+async function loadAll(){
+  document.getElementById('fp-card').innerHTML='<div class="loading">Chargement Simbrief…</div>';
+  document.getElementById('ivao-card').innerHTML='<div class="loading">Chargement IVAO…</div>';
+  document.getElementById('metar-dep-wrap').innerHTML='<div class="loading">METAR…</div>';
+  document.getElementById('metar-arr-wrap').innerHTML='';
+  const result=await loadSimbrief();
+  if(result) await fetchIvao(result.dep,result.arr);
+  else document.getElementById('ivao-card').innerHTML='<div class="no-data">Plan de vol requis</div>';
+}
+
+// =========================================================
+//  INIT
+// =========================================================
+renderPage();
+loadAll();
+</script>
+</body>
+</html>
