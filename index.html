@@ -734,10 +734,10 @@ function advanceVoiceToNextItem(){
   voiceItemIdx=findNextUncheckedItem();
   renderPage();
   if(voiceItemIdx===-1){
-    setVoiceStatus('✓ Section complète — dites le nom de la prochaine section', 'success');
+    setVoiceStatus('✓ '+sections[currentPage].label+' complète — dites "checklist '+sections[currentPage].label.replace(/^\d+\.\s*/,'')+' completed"', 'success');
   } else {
     const item=sections[currentPage].items[voiceItemIdx];
-    setVoiceStatus('En attente : « '+item.r+' »', 'active');
+    setVoiceStatus('► '+sections[currentPage].label+' — En attente : « '+item.r+' »', 'active');
   }
 }
 
@@ -762,46 +762,68 @@ function showFeedback(msg){
  *  1. Navigation : nom de section + mot-clé (completed/done/terminé…)
  *  2. Validation de l'item courant
  */
+/**
+ * Traite une transcription. Retourne true si quelque chose a été validé.
+ * Affiché dans le panneau vocal via onresult, pas ici.
+ */
 function handleTranscript(transcript){
-  const t=normalize(transcript);
-  document.getElementById('voice-transcript').textContent=transcript;
-  document.getElementById('voice-transcript').className='voice-transcript live';
-  setTimeout(()=>{
-    document.getElementById('voice-transcript').className='voice-transcript';
-    document.getElementById('voice-transcript').textContent='';
-  },2000);
+  // Normalise + "check list" → "checklist" (Chrome sépare parfois les deux mots)
+  const t = normalize(transcript).replace(/check\s+list/g,'checklist');
 
-  // --- Navigation par section ---
-  for(let i=0;i<sections.length;i++){
-    const rawLabel=sections[i].label.replace(/^\d+\.\s*/,'');
-    const normLabel=normalize(rawLabel);
-    const keywords=['completed','terminé','done','complete','finish','finished','suivant','next'];
-    const hasKw=keywords.some(kw=>t.includes(kw));
-    const wordsMatch=normLabel.split(' ').filter(w=>w.length>2).every(w=>t.includes(w));
-    if(hasKw && wordsMatch){
-      showFeedback('→ '+sections[i].label);
-      currentPage=i;
-      voiceItemIdx=findNextUncheckedItem();
+  // ── NAVIGATION : "checklist [nom] completed" ──────────────────────────
+  // Accepte aussi : "check list", "completed", "complete", "done", "terminé"
+  const hasChecklist = t.includes('checklist');
+  const hasCompleted = t.includes('completed') || t.includes('complete') || t.includes('done') || t.includes('terminé');
+
+  if(hasChecklist && hasCompleted){
+    // Extrait la partie entre "checklist" et le mot de fin
+    const inner = t
+      .replace(/.*checklist\s*/,'')
+      .replace(/\s*(completed|complete|done|terminé).*/,'')
+      .trim();
+
+    let bestMatch = -1;
+    let bestScore = 0;
+    for(let i=0;i<sections.length;i++){
+      const rawLabel = sections[i].label.replace(/^\d+\.\s*/,'');
+      const normLabel = normalize(rawLabel);
+      // Score : combien de mots de la section sont dans ce qu'on a entendu
+      const words = normLabel.split(' ').filter(w=>w.length>2);
+      if(words.length===0) continue;
+      const matched = words.filter(w=>inner.includes(w) || t.includes(w));
+      const score = matched.length / words.length;
+      if(score > bestScore){ bestScore=score; bestMatch=i; }
+    }
+
+    if(bestMatch>=0 && bestScore>=0.5){
+      const nextPage = Math.min(bestMatch+1, sections.length-1);
+      showFeedback('✓ Checklist ' + sections[bestMatch].label.replace(/^\d+\.\s*/,'') + ' → ' + sections[nextPage].label);
+      currentPage = nextPage;
+      voiceItemIdx = findNextUncheckedItem();
       renderPage();
       if(voiceItemIdx!==-1){
         const item=sections[currentPage].items[voiceItemIdx];
-        setVoiceStatus('En attente : « '+item.r+' »','active');
+        setVoiceStatus('► ' + sections[currentPage].label + ' — En attente : « '+item.r+' »','active');
+      } else {
+        setVoiceStatus('► ' + sections[currentPage].label + ' — Section complète','success');
       }
-      return;
+      return true;
     }
   }
 
-  // --- Validation item courant ---
-  if(voiceItemIdx===-1) return;
+  // ── VALIDATION ITEM COURANT ───────────────────────────────────────────
+  if(voiceItemIdx===-1) return false;
   const item=sections[currentPage].items[voiceItemIdx];
-  if(!item || item.note) return;
+  if(!item || item.note) return false;
 
   if(matchesExpected(t, item)){
     checked[currentPage][voiceItemIdx]=true;
     showFeedback('✓ '+item.r);
     renderPage();
     setTimeout(()=>advanceVoiceToNextItem(), 300);
+    return true;
   }
+  return false;
 }
 
 /** Correspondance floue : >60% des mots de la valeur attendue sont dans le transcript */
@@ -839,38 +861,50 @@ function startVoice(){
   setVoiceStatus('Initialisation…','active');
   renderPage();
 
-  // Initialise la reconnaissance (une seule instance, jamais recrée)
-  // continuous=true évite les redémarrages et donc les redemandes de permission
+  // Une seule instance, continuous=true, pas de interimResults
+  // → Chrome ne redemande pas la permission entre les phrases
   recognition=new SpeechRecognition();
   recognition.lang='en-US';
   recognition.continuous=true;
-  recognition.interimResults=true;
-  recognition.maxAlternatives=1;
+  recognition.interimResults=false;
+  recognition.maxAlternatives=3;
 
   recognition.onresult=function(e){
-    let final='';
+    // Prend tous les résultats finaux depuis e.resultIndex
     for(let i=e.resultIndex;i<e.results.length;i++){
-      if(e.results[i].isFinal) final+=e.results[i][0].transcript;
-      else document.getElementById('voice-transcript').textContent=e.results[i][0].transcript;
+      if(!e.results[i].isFinal) continue;
+      // Essaie chaque alternative (meilleure chance de match)
+      for(let a=0;a<e.results[i].length;a++){
+        const txt=e.results[i][a].transcript.trim();
+        if(txt){
+          // Affiche ce qui est entendu dans le panneau
+          document.getElementById('voice-transcript').textContent=txt;
+          document.getElementById('voice-transcript').className='voice-transcript live';
+          clearTimeout(window._vtClear);
+          window._vtClear=setTimeout(()=>{
+            document.getElementById('voice-transcript').className='voice-transcript';
+            document.getElementById('voice-transcript').textContent='';
+          },3000);
+          // Tente la validation, s'arrête si validé
+          if(handleTranscript(txt)) break;
+        }
+      }
     }
-    if(final.trim()) handleTranscript(final.trim());
   };
 
   recognition.onerror=function(e){
     if(e.error==='no-speech' || e.error==='audio-capture') return;
     console.warn('Voice error:',e.error);
     if(e.error==='not-allowed'){
-      setVoiceStatus('Micro refusé – autorisez l\'accès dans Chrome','warning');
-      stopVoice(); return;
+      setVoiceStatus('Micro refusé – autorisez dans les paramètres Chrome','warning');
+      stopVoice();
     }
-    // Pour toute autre erreur, on laisse onend gérer le redémarrage
   };
 
-  // onend ne se déclenche que si continuous=true est interrompu de l'extérieur
-  // On redémarre sans recréer l'instance (pas de nouvelle demande de permission)
+  // onend : redémarre la même instance (pas de nouvelle permission demandée)
   recognition.onend=function(){
     if(!voiceActive) return;
-    try{ recognition.start(); }catch(err){ console.warn('restart err',err); }
+    try{ recognition.start(); }catch(err){}
   };
 
   try{ recognition.start(); }catch(err){ console.error(err); }
@@ -878,9 +912,9 @@ function startVoice(){
   // Indique le premier item attendu
   if(voiceItemIdx!==-1){
     const item=sections[currentPage].items[voiceItemIdx];
-    setVoiceStatus('En attente : « '+item.r+' »','active');
+    setVoiceStatus('► '+sections[currentPage].label+' — En attente : « '+item.r+' »','active');
   } else {
-    setVoiceStatus('Section déjà complète','success');
+    setVoiceStatus('Section déjà complète — dites "checklist [nom] completed"','success');
   }
 }
 
