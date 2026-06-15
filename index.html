@@ -569,9 +569,10 @@ let checked = sections.map(s => s.items.map(() => false));
 let depIcao = '', arrIcao = '';
 
 // État vocal
-let voiceActive   = false;   // micro actif ?
-let recognition   = null;    // instance SpeechRecognition
-let voiceItemIdx  = -1;      // index de l'item "en attente de validation vocale"
+let voiceActive        = false; // micro actif ?
+let recognition        = null;  // instance SpeechRecognition
+let recognitionRunning = false; // true entre start() et onend()
+let voiceItemIdx       = -1;    // index de l'item "en attente de validation vocale"
 
 
 // =========================================================
@@ -893,21 +894,27 @@ function startVoice(){
   };
 
   recognition.onerror=function(e){
-    if(e.error==='no-speech' || e.error==='audio-capture') return;
-    console.warn('Voice error:',e.error);
+    if(e.error==='no-speech' || e.error==='audio-capture' || e.error==='aborted') return;
     if(e.error==='not-allowed'){
       setVoiceStatus('Micro refusé – autorisez dans les paramètres Chrome','warning');
       stopVoice();
     }
   };
 
-  // onend : redémarre la même instance (pas de nouvelle permission demandée)
+  // onend : redémarre uniquement si pas déjà en cours
   recognition.onend=function(){
-    if(!voiceActive) return;
-    try{ recognition.start(); }catch(err){}
+    if(!voiceActive || recognitionRunning) return;
+    recognitionRunning=false;
+    setTimeout(()=>{
+      if(!voiceActive) return;
+      try{ recognitionRunning=true; recognition.start(); }catch(err){ recognitionRunning=false; }
+    }, 100);
   };
 
-  try{ recognition.start(); }catch(err){ console.error(err); }
+  recognition.onstart=function(){ recognitionRunning=true; };
+
+  recognitionRunning=true;
+  try{ recognition.start(); }catch(err){ recognitionRunning=false; console.error(err); }
 
   // Indique le premier item attendu
   if(voiceItemIdx!==-1){
@@ -921,6 +928,7 @@ function startVoice(){
 function stopVoice(){
   voiceActive=false;
   voiceItemIdx=-1;
+  recognitionRunning=false;
   if(recognition){ try{recognition.abort();}catch(e){} recognition=null; }
 
   document.getElementById('mic-btn').classList.remove('listening','error');
