@@ -709,6 +709,9 @@ const AS_REQUIRED_ALTS = ['on','off','set','done','check','arm','affirm','roger'
 function matchesExpected(t, item){
   const expected = normalize(item.r);
 
+  // "check" valide n'importe quel item
+  if(t === 'check' || t.includes('check')) return true;
+
   // Cas spécial AS REQUIRED
   if(expected === 'as required'){
     return AS_REQUIRED_ALTS.some(alt => t === alt || t.includes(alt));
